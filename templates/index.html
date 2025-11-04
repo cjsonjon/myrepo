@@ -1,0 +1,826 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Sign Language 3D Generator</title>
+    <style>
+      body {
+        margin: 5vh 0;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        background: linear-gradient(135deg, #74ABE2, #5563DE);
+        font-family: Arial, sans-serif;
+        color: #fff;
+      }
+      .container {
+        text-align: center;
+        background: rgba(0, 0, 0, 0.45);
+        padding: 24px;
+        border-radius: 12px;
+        box-shadow: 0 6px 30px rgba(0,0,0,0.35);
+        max-width: 900px;
+        width: 92%;
+      }
+      h1 { margin: 0 0 12px 0; font-size: 1.6rem; }
+      form.top { display:flex; gap:10px; justify-content:center; margin-bottom:14px; }
+      input[name="word"] { padding:10px 12px; border-radius:8px; border:none; width:320px; }
+      button.primary { padding:10px 16px; border-radius:8px; border:none; background:#ffca28; color:#222; font-weight:700; cursor:pointer; }
+      .row { display:flex; gap:12px; align-items:center; justify-content:center; margin-top:12px; }
+      video { margin-top:12px; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,0.5); background:#000; }
+      .dictionary { margin-top:18px; text-align:left; background: rgba(255,255,255,0.06); padding:12px; border-radius:8px; }
+      .dictionary ul { list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:8px; }
+      .dictionary li { padding:8px 10px; border-radius:6px; background:rgba(255,255,255,0.06); cursor:pointer; }
+      .controls { margin-top:14px; display:flex; gap:14px; justify-content:center; flex-wrap:wrap; }
+      .control { background: rgba(255,255,255,0.03); padding:10px; border-radius:8px; text-align:left; color:#fff; }
+      label { display:block; font-size:0.85rem; margin-bottom:6px; color:#ffd54f; }
+      input[type="range"] { width:220px; }
+      .favorites { margin-left: 8px; color:#fff; font-size:0.9rem; }
+      .fav-btn { background:transparent; border:1px solid rgba(255,255,255,0.12); color:#fff; padding:6px 8px; border-radius:6px; cursor:pointer; }
+      .small { font-size:0.85rem; color:#ddd; margin-top:8px; }
+      .subtitle-box { width: 420px; padding:8px; border-radius:6px; border:none; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Sign Language 3D Generator</h1>
+	  
+	  
+	  <div style="text-align:center; margin-bottom:16px;">
+	  <button id="btn-video" class="primary" onclick="showSection('video')">🎞️ Video Viewer</button>
+	  <button id="btn-model" class="primary" onclick="showSection('model')">🧍 3D Model Viewer</button>
+	</div>
+
+      <!-- Top form: build/concat words -->
+	  
+	  <div id="section-video">
+	  
+		  <form method="post" class="top" id="main-form">
+			<input name="word" id="word-input" placeholder="Type word(s)..." value="{{ text or '' }}"/>
+			<button class="primary" type="submit">Go</button>
+		  </form>
+
+		  {% if error %}
+			<p style="color:#ffaaaa">{{ error }}</p>
+		  {% endif %}
+
+		  <!-- Video player -->
+		  {% if video %}
+			<div id="video-wrapper">
+			  <video id="the-video" width="720" controls>
+				<source src="{{ url_for('video', fn=video) }}" type="video/mp4" />
+				Your browser does not support the video tag.
+			  </video>
+			  <div class="small">Original: <code>{{ video }}</code></div>
+			</div>
+
+			<!-- Processing form: filters, subtitle, tts -->
+			<form id="process-form" method="post" action="/process" style="margin-top:12px;">
+			  <input type="hidden" name="video_path" id="video_path" value="{{ video }}" />
+			  <input type="hidden" name="original_input" value="{{ text or '' }}" />
+			  <div class="controls">
+				<div class="control">
+				  <label>Brightness <span id="bval">0.0</span></label>
+				  <input type="range" id="brightness" name="brightness" min="-1" max="1" step="0.05" value="0"/>
+				</div>
+				<div class="control">
+				  <label>Contrast <span id="cval">1.0</span></label>
+				  <input type="range" id="contrast" name="contrast" min="0.2" max="2.0" step="0.05" value="1"/>
+				</div>
+				<div class="control">
+				  <label>Saturation <span id="sval">1.0</span></label>
+				  <input type="range" id="saturation" name="saturation" min="0" max="3.0" step="0.05" value="1"/>
+				</div>
+				
+				<div class="control">
+				  <label>Tint Color <span id="tintHex">#000000</span></label>
+				  <input type="color" id="tint_color" name="tint_color" value="#000000" />
+				  <div class="small">Pick a tint color to apply over the video.</div>
+				</div>
+
+				<div class="control">
+				  <label>Tint Strength <span id="tintVal">0.0</span></label>
+				  <input type="range" id="tint_strength" name="tint_strength" min="0" max="1" step="0.05" value="0" />
+				  <div class="small">0 = no tint, 1 = full tint.</div>
+				</div>
+
+				
+				
+				<div class="control">
+				  <label>Subtitle text</label>
+				  <input class="subtitle-box" type="text" id="subtitle" name="subtitle" placeholder="Text to burn into video (optional)"/>
+				</div>
+				<div class="control">
+				  <label>Text-to-Speech</label>
+				  <input type="checkbox" id="tts" name="tts"/>
+				  <div class="small">When checked, TTS will be generated (Vietnamese) and used as audio.</div>
+				</div>
+			  </div>
+
+			  <div class="row">
+				<button class="primary" type="button" onclick="submitProcess()">Process / Export</button>
+				
+			  </div>
+			</form>
+		  {% endif %}
+	  
+	  </div>
+	  
+	  <!-- === Simple 3D sequence player (Three.js) === -->
+		
+		<div id="section-model" style="visibility:hidden; position:absolute; left:-9999px;">
+			<div class="dictionary">
+				<h3 style="color:#ffd54f; text-align: center">Full 3D Viewer</h3>
+
+				<div id="three-container" style="width:720px; height:480px; margin:12px auto; background:#111; border-radius:8px; overflow:hidden;">
+				  <div id="three-overlay" style="position:relative; z-index:2; color:#fff; padding:8px;">
+					<div style="width:720px; margin:10px auto; text-align:center;">
+					  <input id="pose-phrase-input" type="text" placeholder="Type phrase (e.g. 'chung toi khong can dia chi')" style="width:520px; padding:8px; border-radius:6px; border:none" />
+					  <button id="pose-phrase-play" style="padding:8px 12px; margin-left:8px; border-radius:6px; background:#ffca28; color:#222; border:none; cursor:pointer">Play 3D Phrase</button>
+					  <div class="small" style="margin-top:6px; color:#ddd">Uses mapping from available words to pose folders.</div>
+					</div>
+					<div id="three-progress">Loading frames: 0 / 0</div>
+					<div style="margin-top:6px;">
+					  <button id="three-play">Play</button>
+					  <button id="three-pause">Pause</button>
+					  FPS: <input id="three-fps" type="number" value="15" min="1" max="60" style="width:64px" />
+					  <input id="three-slider" type="range" min="0" max="0" value="0" style="width:240px; vertical-align:middle;" />
+					</div>
+				  </div>
+				  <div id="three-canvas" style="width:100%; height:100%"></div>
+				</div>
+			</div>
+		</div>
+
+      <!-- Dictionary + Search -->
+      <div class="dictionary">
+        <h3 style="color:#ffd54f">Available Words</h3>
+        <input type="text" id="search-bar" placeholder="Search word..." onkeyup="filterWords()" style="width:100%; padding:8px; margin-bottom:10px; border-radius:6px; border:none"/>
+        <ul id="word-list">
+          {% for word in WORD_TO_VIDEO.keys() %}
+            <li title="Click to append">
+			
+				<span style="cursor:pointer;" onclick="addToInput('{{word}}')" title="Click to append">{{ word }}</span>
+			  <button type="button" class="fav-btn bookmark-btn" title="Add/remove favorite" aria-label="bookmark" onclick="toggleFavorite(event, '{{word}}')">☆</button>
+			</li>
+			
+          {% endfor %}
+        </ul>
+        <div class="small">Click words to append to input. Use "Go" to concatenate & play.</div>
+      </div>
+	  
+	    <div id="favorites-section" style="margin-bottom:12px; background: rgba(255,255,255,0.02); padding:8px; border-radius:6px;">
+		  <h4 style="margin:6px 0 8px 0; color:#ffd54f">Favorites</h4>
+		  <div id="favorites-list" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+		  <div id="no-favs" class="small" style="margin-top:8px; color:#ddd">No favorites yet — click the ★ on any word to bookmark it.</div>
+		</div>
+
+	
+		</ul>
+		
+		
+
+
+    </div>
+	
+	
+
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.min.js"></script>
+<!-- script src="https://cdn.jsdelivr.net/npm/three@0.155.0/examples/js/loaders/OBJLoader.js"></script --> 
+
+
+<script>
+	function showSection(which){
+	  const v = document.getElementById('section-video');
+	  const m = document.getElementById('section-model');
+	  const btnV = document.getElementById('btn-video');
+	  const btnM = document.getElementById('btn-model');
+	  if(which === 'video'){
+		v.style.visibility='visible'; v.style.position='static';
+		m.style.visibility='hidden'; m.style.position='absolute'; m.style.left='-9999px';
+		btnV.style.background = '#ffca28';
+        btnM.style.background = '#ccc';
+	  } else {
+		m.style.visibility='visible'; m.style.position='static';
+		v.style.visibility='hidden'; v.style.position='absolute'; v.style.left='-9999px';
+		btnM.style.background = '#ffca28';
+        btnV.style.background = '#ccc';
+	  }
+	}
+	
+	showSection('video');
+	
+ 
+ //3D Viewer
+ (async function(){
+  // ----- EDIT THIS MAP: word (user phrase) -> pose folder under static/poses/<folder> -----
+  // Fill with your real mappings. Example:
+  const POSE_MAP = {
+	  "my tom": "9_my_tom",
+	  "nhan vien": "4_sl_nhan_vien",
+	};
+
+  // ----------------------------------------------------------------------------------------
+
+  const container = document.getElementById('three-canvas');
+  const progressEl = document.getElementById('three-progress');
+  const playBtn = document.getElementById('three-play');
+  const pauseBtn = document.getElementById('three-pause');
+  const fpsInput = document.getElementById('three-fps');
+  const slider = document.getElementById('three-slider');
+  const phraseInput = document.getElementById('pose-phrase-input');
+  const phrasePlayBtn = document.getElementById('pose-phrase-play');
+
+  // three.js scene
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0b0b0b);
+  const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+  camera.position.set(0, 1, 2.6);
+
+  const renderer = new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  container.appendChild(renderer.domElement);
+
+  // lights
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.9);
+  scene.add(hemi);
+  const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+  dir.position.set(3,10,5);
+  scene.add(dir);
+
+  // a single mesh placeholder used for swapping geometry
+  let currentMesh = new THREE.Group();
+  scene.add(currentMesh);
+
+  // interaction
+  function enableSimpleInteraction(){
+    let isDown = false;
+    let startX = 0, startY = 0;
+    let startRotX = 0, startRotY = 0;
+    const rotSpeed = 0.005;
+    const zoomSpeed = 0.2;
+    const minZ = 0.6, maxZ = 6.0;
+
+    function onDown(e){
+      isDown = true;
+      const p = (e.touches && e.touches[0]) || e;
+      startX = p.clientX;
+      startY = p.clientY;
+      startRotX = currentMesh.rotation.x;
+      startRotY = currentMesh.rotation.y;
+      e.preventDefault && e.preventDefault();
+    }
+    function onMove(e){
+      if(!isDown) return;
+      const p = (e.touches && e.touches[0]) || e;
+      const dx = p.clientX - startX;
+      const dy = p.clientY - startY;
+      currentMesh.rotation.y = startRotY + dx * rotSpeed;
+      currentMesh.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, startRotX + dy * rotSpeed));
+    }
+    function onUp(){ isDown = false; }
+    function onWheel(e){
+      e.preventDefault();
+      const delta = (e.deltaY || e.wheelDelta) > 0 ? 1 : -1;
+      let z = camera.position.z + delta * zoomSpeed;
+      z = Math.max(minZ, Math.min(maxZ, z));
+      camera.position.z = z;
+    }
+
+    const el = renderer.domElement;
+    el.style.touchAction = 'none';
+    el.tabIndex = el.tabIndex || 0;
+    el.style.outline = 'none';
+
+    el.addEventListener('pointerdown', onDown, {passive:false});
+    document.addEventListener('pointermove', onMove, {passive:false});
+    document.addEventListener('pointerup', onUp, {passive:false});
+    el.addEventListener('touchstart', onDown, {passive:false});
+    document.addEventListener('touchmove', onMove, {passive:false});
+    document.addEventListener('touchend', onUp, {passive:false});
+    el.addEventListener('wheel', onWheel, {passive:false});
+
+    el.addEventListener('pointerenter', ()=> el.style.cursor = 'grab');
+    el.addEventListener('pointerdown', ()=> el.style.cursor = 'grabbing');
+    document.addEventListener('pointerup', ()=> el.style.cursor = 'grab');
+
+    console.log("Simple interaction enabled on canvas", el);
+  }
+  enableSimpleInteraction();
+
+  // --- Minimal OBJ parser (same as before) ---
+  async function loadOBJ(url){
+    const txt = await (await fetch(url)).text();
+    return parseOBJText(txt);
+  }
+  function parseOBJText(txt){
+    const lines = txt.split('\n');
+    const verts = [];
+    const faces = [];
+    for(const raw of lines){
+      const line = raw.trim();
+      if(line.length === 0) continue;
+      const parts = line.split(/\s+/);
+      if(parts[0] === 'v' && parts.length >= 4){
+        verts.push([parseFloat(parts[1]), parseFloat(parts[2]), parseFloat(parts[3])]);
+      } else if(parts[0] === 'f' && parts.length >= 4){
+        const idxs = parts.slice(1).map(p => {
+          const a = p.split('/');
+          return parseInt(a[0], 10) - 1;
+        }).filter(n => !Number.isNaN(n));
+        for(let i=1;i<idxs.length-1;i++){
+          faces.push([idxs[0], idxs[i], idxs[i+1]]);
+        }
+      }
+    }
+    const geometry = new THREE.BufferGeometry();
+    const position = new Float32Array(verts.length * 3);
+    for(let i=0;i<verts.length;i++){
+      position[i*3+0] = verts[i][0];
+      position[i*3+1] = verts[i][1];
+      position[i*3+2] = verts[i][2];
+    }
+    geometry.setAttribute('position', new THREE.BufferAttribute(position, 3));
+    if(faces.length > 0){
+      const idx = new Uint32Array(faces.length * 3);
+      for(let i=0;i<faces.length;i++){
+        idx[i*3+0] = faces[i][0];
+        idx[i*3+1] = faces[i][1];
+        idx[i*3+2] = faces[i][2];
+      }
+      geometry.setIndex(new THREE.BufferAttribute(idx, 1));
+    }
+    geometry.computeVertexNormals();
+    const mat = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.1, roughness: 0.8 });
+    const mesh = new THREE.Mesh(geometry, mat);
+    const g = new THREE.Group();
+    g.add(mesh);
+    return g;
+  }
+
+  // --- utilities to request frames list for a pose folder ---
+  async function fetchFrameUrlsForPose(folderName){
+    // Accept either folderName already a URL-usable name or if user typed a direct folder path in [] then use as-is
+    const endpoint = `/frames/${encodeURIComponent(folderName)}`;
+    const res = await fetch(endpoint);
+    if(!res.ok) throw new Error(`frames endpoint error ${res.status}`);
+    const j = await res.json();
+    return j.frames || [];
+  }
+
+  // --- Main: play phrase ---
+  let objects = [];    // preloaded THREE.Group per frame
+  let playing = false;
+  let frame = 0;
+  let lastTime = performance.now();
+  let acc = 0;
+
+  function clearObjects(){
+    objects = [];
+    currentMesh.clear();
+    slider.max = 0;
+    slider.value = 0;
+  }
+
+  async function preloadAndPlay(urls){
+    // urls = array of obj URLs in final stitched order
+    clearObjects();
+    progressEl.innerText = `Loading frames: 0 / ${urls.length}`;
+    for(let i=0;i<urls.length;i++){
+      progressEl.innerText = `Loading frames: ${i+1} / ${urls.length}`;
+      try{
+        const obj = await loadOBJ(urls[i]);
+        // normalize per-frame: scale+center (you can tweak scale/offset here)
+        const bbox = new THREE.Box3().setFromObject(obj);
+        const size = bbox.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z);
+        if(maxDim > 0){
+          const scale = 2.0; // tune if needed
+          obj.scale.setScalar(scale);
+          const center = bbox.getCenter(new THREE.Vector3());
+          obj.position.set(-center.x * scale - 0.1, -center.y * scale + 0.2 , -center.z * scale - 0.5);
+        }
+        objects.push(obj);
+      }catch(err){
+        console.error("OBJ load failed", urls[i], err);
+        objects.push(null);
+      }
+      slider.max = Math.max(0, urls.length - 1);
+    }
+    progressEl.innerText = `Loaded ${objects.length} frames. Ready.`;
+    // show first frame
+    frame = 0;
+    showFrame(0);
+    playing = true;
+  }
+
+  function showFrame(i){
+    if(i < 0 || i >= objects.length) return;
+    currentMesh.clear();
+    const o = objects[i];
+    if(o) currentMesh.add(o);
+    else {
+      const g = new THREE.Group();
+      const geo = new THREE.BoxGeometry(0.3,0.3,0.3);
+      const mat = new THREE.MeshStandardMaterial({color:0xff0000});
+      g.add(new THREE.Mesh(geo,mat));
+      currentMesh.add(g);
+    }
+    slider.value = i;
+    progressEl.innerText = `Frame ${i+1} / ${objects.length}`;
+  }
+
+  // Render loop
+  function animate(now){
+    const fps = Math.max(1, Number(fpsInput.value) || 15);
+    const dt = (now - lastTime) / 1000.0;
+    lastTime = now;
+    if(playing && objects.length > 0){
+      acc += dt;
+      const frameTime = 1.0 / fps;
+      while(acc >= frameTime){
+        frame = Math.min(objects.length - 1, frame + 1);
+        // if we reached last frame -> stop (do not loop unless you want to)
+        if(frame >= objects.length - 1){
+          playing = false;
+          break;
+        }
+        showFrame(frame);
+        acc -= frameTime;
+      }
+    }
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+  }
+  requestAnimationFrame(animate);
+
+  // controls
+  playBtn.onclick = ()=> { if(objects.length) playing = true; };
+  pauseBtn.onclick = ()=> { playing = false; };
+  slider.oninput = (e)=> { frame = parseInt(e.target.value); showFrame(frame); playing = false; };
+  fpsInput.onchange = ()=> {};
+
+  // ===== UI: Play phrase button handler =====
+  phrasePlayBtn.addEventListener('click', async ()=>{
+    const raw = phraseInput.value.trim();
+    if(!raw){ alert("Type a phrase or folder names."); return; }
+
+    // split phrase into tokens; support two forms:
+    // 1) bracketed folder names: [9_my_tom] [1_chung_toi]
+    // 2) plain words that map via POSE_MAP (case-insensitive)
+    const tokens = [];
+    // extract bracketed folders first
+    const bracketRegex = /\[([^\]]+)\]/g;
+    let m;
+    let leftover = raw;
+    const usedBrackets = [];
+    while((m = bracketRegex.exec(raw)) !== null){
+      usedBrackets.push(m[1].trim());
+      leftover = leftover.replace(m[0], ''); // remove bracketed chunk
+    }
+    // leftover words (split by spaces)
+    const leftoverWords = leftover.split(/\s+/).map(s=>s.trim()).filter(Boolean);
+    // build token list: first bracket folders (in order), then mapped leftover words in order
+    const words = leftover.toLowerCase().split(/\s+/).filter(Boolean);
+	let i = 0;
+	while (i < words.length) {
+	  let matched = null;
+	  // try longest possible match (3 words → 2 → 1)
+	  for (let len = 3; len >= 1; len--) {
+		const phrase = words.slice(i, i + len).join(' ');
+		if (POSE_MAP[phrase]) { matched = phrase; i += len; break; }
+	  }
+	  if (matched) {
+		tokens.push({ type: 'word', val: matched });
+	  } else {
+		alert(`Missing mapping for word: "${words[i]}"`);
+		return;
+	  }
+	}
+
+    // Build final list of pose folders to query
+    const folders = [];
+    // First bracket folders (already folder names)
+    for(const t of tokens){
+      if(t.type === 'folder') {
+        folders.push(t.val);
+      } else if(t.type === 'word') {
+        const key = t.val;
+        // try exact match (case-insensitive)
+        const mapKey = Object.keys(POSE_MAP).find(k =>
+		  k.toLowerCase().replace(/_/g, ' ') === key.toLowerCase().replace(/_/g, ' ')
+		);
+        if(mapKey){
+          folders.push(POSE_MAP[mapKey]);
+        } else {
+          // Attempt multi-word keys by looking ahead in original phrase (basic approach)
+          // If not found, alert and stop
+          alert(`Missing mapping for word: "${t.val}". Add it to POSE_MAP.`);
+          return;
+        }
+      }
+    }
+
+    if(folders.length === 0){
+      alert("No pose folders determined from input.");
+      return;
+    }
+
+    // Fetch frames for each folder and concatenate
+    const stitchedUrls = [];
+    try{
+      for(const f of folders){
+        progressEl.innerText = `Querying frames for ${f}...`;
+        const frames = await fetchFrameUrlsForPose(f);
+        if(frames.length === 0){
+          throw new Error(`No frames found in pose folder: ${f}`);
+        }
+        // append all frames (you could also trim start/end frames per-word if desired)
+        stitchedUrls.push(...frames);
+      }
+    } catch(err){
+      alert("Error preparing phrase: " + err.message);
+      console.error(err);
+      return;
+    }
+
+    // Preload and play the stitchedUrls
+    await preloadAndPlay(stitchedUrls);
+  });
+
+  // Resize handling
+  window.addEventListener('resize', ()=> {
+    camera.aspect = container.clientWidth / container.clientHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(container.clientWidth, container.clientHeight);
+  });
+
+})();
+
+
+
+  // ====== Favorites (localStorage) ======
+  
+  const FAV_KEY = 'favorites';
+
+  function loadFavorites(){
+    try { return JSON.parse(localStorage.getItem(FAV_KEY) || "[]"); }
+    catch(e){ return []; }
+  }
+  function saveFavorites(arr){
+    localStorage.setItem(FAV_KEY, JSON.stringify(arr));
+  }
+
+  function isFavorite(word){
+    const fav = loadFavorites();
+    return fav.includes(word);
+  }
+
+  function addFavoriteWord(word){
+    if(!word) return;
+    const fav = loadFavorites();
+    if(!fav.includes(word)){
+      fav.push(word);
+      saveFavorites(fav);
+      renderFavorites();
+      updateBookmarkButtons();
+    }
+  }
+
+  function removeFavoriteWord(word){
+    if(!word) return;
+    let fav = loadFavorites();
+    fav = fav.filter(w => w !== word);
+    saveFavorites(fav);
+    renderFavorites();
+    updateBookmarkButtons();
+  }
+
+  // Toggle favorite from the bookmark button inside the word list.
+  // event is passed so we can stop propagation and prevent the click from also appending word.
+  function toggleFavorite(event, word){
+    event.stopPropagation();
+    if(isFavorite(word)) removeFavoriteWord(word);
+    else addFavoriteWord(word);
+  }
+
+  // Render the favorites panel (buttons that load the chosen phrase into input).
+  function renderFavorites(){
+    const container = document.getElementById('favorites-list');
+    const noFavs = document.getElementById('no-favs');
+    container.innerHTML = '';
+    //const fav = loadFavorites();
+	  const fav = loadFavorites().slice().sort((a, b) => a.localeCompare(b, 'vi', {sensitivity: 'base'}));
+	  
+    if(fav.length === 0){
+      noFavs.style.display = '';
+      return;
+    }
+    noFavs.style.display = 'none';
+    fav.forEach(w => {
+      const pill = document.createElement('div');
+      pill.style.display = 'flex';
+      pill.style.alignItems = 'center';
+      pill.style.gap = '8px';
+      pill.style.background = 'rgba(255,255,255,0.06)';
+      pill.style.padding = '6px 8px';
+      pill.style.borderRadius = '6px';
+
+      const text = document.createElement('span');
+      text.textContent = w;
+      text.style.cursor = 'pointer';
+      text.title = 'Click to load';
+      text.onclick = ()=> {
+        document.getElementById('word-input').value += " " + w;
+		document.getElementById('pose-phrase-input').value += " " + w;
+        //document.getElementById('main-form').submit();
+      };
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'fav-btn';
+      removeBtn.type = 'button';
+      removeBtn.textContent = '✕';
+      removeBtn.title = 'Remove from favorites';
+      removeBtn.onclick = ()=> removeFavoriteWord(w);
+
+      pill.appendChild(text);
+      pill.appendChild(removeBtn);
+      container.appendChild(pill);
+    });
+  }
+
+  // Update the star icons in the word list to reflect favorites
+  function updateBookmarkButtons(){
+    document.querySelectorAll('#word-list .word-item').forEach(li=>{
+      const w = li.dataset.word;
+      const btn = li.querySelector('.bookmark-btn');
+      if(!btn) return;
+      btn.textContent = isFavorite(w) ? '★' : '☆';
+      // optional: change style when favorited
+      if(isFavorite(w)){
+        btn.style.background = 'rgba(255,255,255,0.12)';
+      } else {
+        btn.style.background = 'transparent';
+      }
+    });
+  }
+
+  // Replace old showFavorites/addFavorite functions: expose simple API for other buttons if needed
+  window.addFavorite = function(){ addFavoriteWord(document.getElementById('word-input').value.trim()); };
+  window.showFavorites = function(){ 
+    const fav = loadFavorites();
+    if(fav.length === 0){ alert("No favorites yet."); return; }
+    // simple chooser (keeps older behavior available)
+    const pick = prompt("Favorites (type exact to load):\n" + fav.join("\n"));
+    if(pick){
+      document.getElementById('word-input').value = pick;
+      document.getElementById('main-form').submit();
+    }
+  };
+  
+  // ====== END Favorites (localStorage) ======
+
+  // filterWords and addToInput still used elsewhere; keep them
+  function filterWords(){
+    const q = document.getElementById('search-bar').value.toLowerCase();
+    document.querySelectorAll("#word-list li").forEach(li=>{
+      li.style.display = li.dataset.word.toLowerCase().includes(q) ? "" : "none";
+    });
+  }
+  function addToInput(word){
+    const input = document.getElementById('word-input');
+    input.value = (input.value + " " + word).trim();
+		
+	const input2 = document.getElementById('pose-phrase-input');
+    input2.value = (input2.value + " " + word).trim();
+	
+  }
+
+  // Initial render on page load
+  document.addEventListener('DOMContentLoaded', ()=>{
+    renderFavorites();
+    updateBookmarkButtons();
+
+    // Add click handler for each list item (so clicking the word text still appends)
+    // and ensure clicking the star button doesn't bubble to the li (we already stopPropagation in toggleFavorite).
+    document.querySelectorAll('#word-list .word-item').forEach(li=>{
+      // click on item (not star) appends word
+      li.addEventListener('click', (ev)=>{
+        // if user clicked the bookmark button it's already handled and stopped
+        const target = ev.target;
+        if(target.classList.contains('bookmark-btn')) return;
+        const w = li.dataset.word;
+        addToInput(w);
+      });
+    });
+  });
+  
+  (function(){
+    const tintColor = document.getElementById('tint_color');
+    const tintStrength = document.getElementById('tint_strength');
+    const tintHex = document.getElementById('tintHex');
+    const tintVal = document.getElementById('tintVal');
+
+    if(tintColor){
+      tintColor.addEventListener('input', ()=> {
+        tintHex.innerText = tintColor.value.toLowerCase();
+      });
+    }
+    if(tintStrength){
+      tintStrength.addEventListener('input', ()=> {
+        tintVal.innerText = parseFloat(tintStrength.value).toFixed(2);
+      });
+    }
+
+    // preset helper
+    window.applyTint = function(hex, strength){
+      if(tintColor) tintColor.value = (hex && hex.length ? hex : '#000000');
+      if(tintStrength) tintStrength.value = (typeof strength === 'number' ? strength : 0);
+      if(tintHex) tintHex.innerText = tintColor ? tintColor.value.toLowerCase() : '#000000';
+      if(tintVal) tintVal.innerText = (tintStrength ? parseFloat(tintStrength.value).toFixed(2) : '0.00');
+    };
+  })();
+  
+  function addFavorite(){
+    const inp = document.getElementById('word-input').value.trim();
+    if(!inp) { alert("Type or click a word first."); return; }
+    let fav = JSON.parse(localStorage.getItem('favorites') || "[]");
+    if(!fav.includes(inp)){
+      fav.push(inp);
+      localStorage.setItem('favorites', JSON.stringify(fav));
+      alert("Added to favorites: " + inp);
+    } else {
+      alert("Already in favorites.");
+    }
+  }
+
+  function showFavorites(){
+    const fav = JSON.parse(localStorage.getItem('favorites') || "[]");
+    if(fav.length === 0){ alert("No favorites yet."); return; }
+    const pick = prompt("Favorites (type exact to load):\n" + fav.join("\n"));
+    if(pick){
+      document.getElementById('word-input').value = pick;
+      document.getElementById('main-form').submit();
+    }
+  }
+
+  // ====== Append words to input (dictionary click) ======
+  function addToInput(word){
+    const input = document.getElementById('word-input');
+    input.value = (input.value + " " + word).trim();
+	
+	
+	const input2 = document.getElementById('pose-phrase-input');
+    input2.value = (input2.value + " " + word).trim();
+  }
+
+  // ====== Search filter ======
+  function filterWords(){
+    const q = document.getElementById('search-bar').value.toLowerCase();
+    document.querySelectorAll("#word-list li").forEach(li=>{
+      li.style.display = li.textContent.toLowerCase().includes(q) ? "" : "none";
+    });
+  }
+
+  // ====== Range labels ======
+  const b = document.getElementById('brightness'), c = document.getElementById('contrast'), s = document.getElementById('saturation');
+  if(b){ b.oninput = ()=> document.getElementById('bval').innerText = b.value; }
+  if(c){ c.oninput = ()=> document.getElementById('cval').innerText = c.value; }
+  if(s){ s.oninput = ()=> document.getElementById('sval').innerText = s.value; }
+
+  // ====== Submit process form via AJAX to avoid full page reload (optional) ======
+  function submitProcess(){
+	  const form = document.getElementById('process-form');
+	  // ensure video path is set
+	  document.getElementById('video_path').value = document.getElementById('video_path').value || '';
+
+	  // if TTS checked but no subtitle, confirm behavior (same as before)
+	  if(document.getElementById('tts').checked && !document.getElementById('subtitle').value){
+		if(!confirm("No subtitle provided. Use typed sentence for TTS?")) return;
+	  }
+
+	  // give quick feedback and prevent double clicks
+	  const btn = document.querySelector('button.primary[onclick="submitProcess()"]');
+	  if(btn){
+		btn.disabled = true;
+		const prevText = btn.textContent;
+		btn.textContent = 'Processing...';
+		// submit the form — browser will load server response (scripts will re-run)
+		form.submit();
+		// no need to reset button here (page will reload). If submit fails (JS-only), restore:
+		setTimeout(()=> {
+		  try { btn.disabled = false; btn.textContent = prevText; } catch(e) {}
+		}, 3000);
+	  } else {
+		form.submit();
+	  }
+	}
+
+
+  // Auto-clear input on load (optional)
+  window.onload = function(){ /* keep current behavior: don't clear if text present */ };
+
+</script>
+  </body>
+</html>

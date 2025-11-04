@@ -1,0 +1,195 @@
+<!doctype html>
+<html>
+  <head>
+    <style>
+      body {
+        margin: 5vh 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: linear-gradient(135deg, #74ABE2, #5563DE);
+        font-family: Arial, sans-serif;
+        color: #fff;
+      }
+
+      .container {
+        text-align: center;
+        background: rgba(0, 0, 0, 0.4);
+        padding: 40px;
+        border-radius: 15px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        max-width: 700px;
+        width: 90%;
+      }
+
+      h1 {
+        margin-bottom: 20px;
+        font-size: 2rem;
+        font-weight: bold;
+      }
+
+      form {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+
+      input[name="word"] {
+        padding: 10px 15px;
+        border-radius: 8px;
+        border: none;
+        width: 250px;
+        font-size: 1rem;
+      }
+
+      button {
+        padding: 10px 20px;
+        border-radius: 8px;
+        border: none;
+        background-color: #ffca28;
+        color: #333;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background 0.3s ease;
+      }
+
+      button:hover {
+        background-color: #ffc107;
+      }
+
+      video {
+        margin-top: 20px;
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      }
+
+      p {
+        margin-top: 20px;
+        font-size: 1.1rem;
+      }
+
+      .dictionary {
+        margin-top: 30px;
+        text-align: left;
+        background: rgba(255, 255, 255, 0.1);
+        padding: 15px;
+        border-radius: 10px;
+      }
+
+      .dictionary h2 {
+        font-size: 1.3rem;
+        margin-bottom: 10px;
+        color: #ffd54f;
+      }
+
+      .dictionary ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .dictionary li {
+        background: rgba(255, 255, 255, 0.15);
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 0.95rem;
+        transition: background 0.3s ease;
+      }
+
+      .dictionary li:hover {
+        background: rgba(255, 255, 255, 0.3);
+      }
+	  
+	 /* Remove button styling completely */
+	.dictionary button {
+	  all: unset;  /* Resets all button styles */
+	  font-size: 0.95rem;  /* Make text size the same as list items */
+	  cursor: pointer;  /* Keeps the clickable effect */
+	  background: none;  /* No background */
+	  border: none;  /* No border */
+	  padding: 0;  /* No padding */
+	  margin: 0;  /* No margin */
+	  display: inline;  /* Make it behave like inline text */
+	}
+
+
+	.dictionary button:focus {
+	  outline: none;  /* Remove focus outline */
+	}
+
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+      <h1>Sign Language 3D Generator</h1>
+      <form method="post">
+        <input
+          name="word"
+          id="word-input"
+          placeholder="Type word(s)…"
+          value="{{ text or '' }}"
+        />
+        <button>Go</button>
+      </form>
+
+      {% if video %}
+        <video width="640" controls>
+          <source src="{{ url_for('video', fn=video) }}" type="video/mp4" />
+        </video>
+      {% elif text %}
+        <p style="color:red;">Cannot find video for “{{ text }}”.</p>
+      {% endif %}
+
+      <!-- Dictionary Section -->
+      <div class="dictionary">
+        <h2>Available Words</h2>
+		
+		<input
+			type="text"
+			id="search-bar"
+			placeholder="Search word..."
+			onkeyup="filterWords()"
+			style="margin-bottom:10px; padding:6px; width:80%; border-radius:8px; border:1px solid #ccc;"
+		  />
+          <ul id="word-list">
+			{% for word in WORD_TO_VIDEO.keys() %}
+			  <li>
+				<button type="button" class="dictionary" onclick="insertWord('{{ word }}')">
+				  {{ word }}
+				</button>
+			  </li>
+			{% endfor %}
+		  </ul>
+      </div>
+    </div>
+
+    <script>
+      // Clear input when page loads (optional)
+      window.onload = function() {
+        document.getElementById('word-input').value = '';
+      }
+	  
+	  function insertWord(word) {
+		  const input = document.getElementById('word-input');
+		  // Replace the input value (or append, if you prefer sentences)
+		  input.value = (input.value + " " + word).trim();
+		}
+		
+	function filterWords() {
+		const query = document.getElementById('search-bar').value.toLowerCase();
+		const listItems = document.querySelectorAll("#word-list li");
+		listItems.forEach(item => {
+		  const text = item.textContent.toLowerCase();
+		  item.style.display = text.includes(query) ? "" : "none";
+		});
+	  }
+		
+		
+    </script>
+  </body>
+</html>

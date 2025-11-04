@@ -1,0 +1,631 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Sign Language 3D Generator</title>
+    <style>
+      body {
+        margin: 5vh 0;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        background: linear-gradient(135deg, #74ABE2, #5563DE);
+        font-family: Arial, sans-serif;
+        color: #fff;
+      }
+      .container {
+        text-align: center;
+        background: rgba(0, 0, 0, 0.45);
+        padding: 24px;
+        border-radius: 12px;
+        box-shadow: 0 6px 30px rgba(0,0,0,0.35);
+        max-width: 900px;
+        width: 92%;
+      }
+      h1 { margin: 0 0 12px 0; font-size: 1.6rem; }
+      form.top { display:flex; gap:10px; justify-content:center; margin-bottom:14px; }
+      input[name="word"] { padding:10px 12px; border-radius:8px; border:none; width:320px; }
+      button.primary { padding:10px 16px; border-radius:8px; border:none; background:#ffca28; color:#222; font-weight:700; cursor:pointer; }
+      .row { display:flex; gap:12px; align-items:center; justify-content:center; margin-top:12px; }
+      video { margin-top:12px; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,0.5); background:#000; }
+      .dictionary { margin-top:18px; text-align:left; background: rgba(255,255,255,0.06); padding:12px; border-radius:8px; }
+      .dictionary ul { list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:8px; }
+      .dictionary li { padding:8px 10px; border-radius:6px; background:rgba(255,255,255,0.06); cursor:pointer; }
+      .controls { margin-top:14px; display:flex; gap:14px; justify-content:center; flex-wrap:wrap; }
+      .control { background: rgba(255,255,255,0.03); padding:10px; border-radius:8px; text-align:left; color:#fff; }
+      label { display:block; font-size:0.85rem; margin-bottom:6px; color:#ffd54f; }
+      input[type="range"] { width:220px; }
+      .favorites { margin-left: 8px; color:#fff; font-size:0.9rem; }
+      .fav-btn { background:transparent; border:1px solid rgba(255,255,255,0.12); color:#fff; padding:6px 8px; border-radius:6px; cursor:pointer; }
+      .small { font-size:0.85rem; color:#ddd; margin-top:8px; }
+      .subtitle-box { width: 420px; padding:8px; border-radius:6px; border:none; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Sign Language 3D Generator</h1>
+
+      <!-- Top form: build/concat words -->
+      <form method="post" class="top" id="main-form">
+        <input name="word" id="word-input" placeholder="Type word(s)..." value="{{ text or '' }}"/>
+        <button class="primary" type="submit">Go</button>
+      </form>
+
+      {% if error %}
+        <p style="color:#ffaaaa">{{ error }}</p>
+      {% endif %}
+
+      <!-- Video player -->
+      {% if video %}
+        <div id="video-wrapper">
+          <video id="the-video" width="720" controls>
+            <source src="{{ url_for('video', fn=video) }}" type="video/mp4" />
+            Your browser does not support the video tag.
+          </video>
+          <div class="small">Original: <code>{{ video }}</code></div>
+        </div>
+
+        <!-- Processing form: filters, subtitle, tts -->
+        <form id="process-form" method="post" action="/process" style="margin-top:12px;">
+          <input type="hidden" name="video_path" id="video_path" value="{{ video }}" />
+          <input type="hidden" name="original_input" value="{{ text or '' }}" />
+          <div class="controls">
+            <div class="control">
+              <label>Brightness <span id="bval">0.0</span></label>
+              <input type="range" id="brightness" name="brightness" min="-1" max="1" step="0.05" value="0"/>
+            </div>
+            <div class="control">
+              <label>Contrast <span id="cval">1.0</span></label>
+              <input type="range" id="contrast" name="contrast" min="0.2" max="2.0" step="0.05" value="1"/>
+            </div>
+            <div class="control">
+              <label>Saturation <span id="sval">1.0</span></label>
+              <input type="range" id="saturation" name="saturation" min="0" max="3.0" step="0.05" value="1"/>
+            </div>
+			
+			<div class="control">
+			  <label>Tint Color <span id="tintHex">#000000</span></label>
+			  <input type="color" id="tint_color" name="tint_color" value="#000000" />
+			  <div class="small">Pick a tint color to apply over the video.</div>
+			</div>
+
+			<div class="control">
+			  <label>Tint Strength <span id="tintVal">0.0</span></label>
+			  <input type="range" id="tint_strength" name="tint_strength" min="0" max="1" step="0.05" value="0" />
+			  <div class="small">0 = no tint, 1 = full tint.</div>
+			</div>
+
+			
+			
+            <div class="control">
+              <label>Subtitle text</label>
+              <input class="subtitle-box" type="text" id="subtitle" name="subtitle" placeholder="Text to burn into video (optional)"/>
+            </div>
+            <div class="control">
+              <label>Text-to-Speech</label>
+              <input type="checkbox" id="tts" name="tts"/>
+              <div class="small">When checked, TTS will be generated (Vietnamese) and used as audio.</div>
+            </div>
+          </div>
+
+          <div class="row">
+            <button class="primary" type="button" onclick="submitProcess()">Process / Export</button>
+            
+          </div>
+        </form>
+      {% endif %}
+
+      <!-- Dictionary + Search -->
+      <div class="dictionary">
+        <h3 style="color:#ffd54f">Available Words</h3>
+        <input type="text" id="search-bar" placeholder="Search word..." onkeyup="filterWords()" style="width:100%; padding:8px; margin-bottom:10px; border-radius:6px; border:none"/>
+        <ul id="word-list">
+          {% for word in WORD_TO_VIDEO.keys() %}
+            <li title="Click to append">
+			
+				<span style="cursor:pointer;" onclick="addToInput('{{word}}')" title="Click to append">{{ word }}</span>
+			  <button type="button" class="fav-btn bookmark-btn" title="Add/remove favorite" aria-label="bookmark" onclick="toggleFavorite(event, '{{word}}')">☆</button>
+			</li>
+			
+          {% endfor %}
+        </ul>
+        <div class="small">Click words to append to input. Use "Go" to concatenate & play.</div>
+      </div>
+	  
+	  <div id="favorites-section" style="margin-bottom:12px; background: rgba(255,255,255,0.02); padding:8px; border-radius:6px;">
+		  <h4 style="margin:6px 0 8px 0; color:#ffd54f">Favorites</h4>
+		  <div id="favorites-list" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+		  <div id="no-favs" class="small" style="margin-top:8px; color:#ddd">No favorites yet — click the ★ on any word to bookmark it.</div>
+		</div>
+
+	
+		</ul>
+
+    </div>
+	
+	<!-- === Simple 3D sequence player (Three.js) === -->
+	<div id="three-container" style="width:720px; height:480px; margin:12px auto; background:#111; border-radius:8px; overflow:hidden;">
+	  <div id="three-overlay" style="position:relative; z-index:2; color:#fff; padding:8px;">
+		<div id="three-progress">Loading frames: 0 / 0</div>
+		<div style="margin-top:6px;">
+		  <button id="three-play">Play</button>
+		  <button id="three-pause">Pause</button>
+		  FPS: <input id="three-fps" type="number" value="15" min="1" max="60" style="width:64px" />
+		  <input id="three-slider" type="range" min="0" max="0" value="0" style="width:240px; vertical-align:middle;" />
+		</div>
+	  </div>
+	  <div id="three-canvas" style="width:100%; height:100%"></div>
+	</div>
+
+
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.155.0/examples/js/loaders/OBJLoader.js"></script>
+
+
+<script>
+ 
+ //3D Viewer
+ (async function(){
+  // CONFIG: folder name under static/poses/
+  const POSE_NAME = "9_my_tom"; // change to your folder name
+  const framesEndpoint = `/frames/${POSE_NAME}`; // Flask route from earlier
+
+  const container = document.getElementById('three-canvas');
+  const progressEl = document.getElementById('three-progress');
+  const playBtn = document.getElementById('three-play');
+  const pauseBtn = document.getElementById('three-pause');
+  const fpsInput = document.getElementById('three-fps');
+  const slider = document.getElementById('three-slider');
+
+  // three.js scene
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0b0b0b);
+  const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+  camera.position.set(0, 1, 2.6);
+
+  const renderer = new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  container.appendChild(renderer.domElement);
+
+  // lights
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.9);
+  scene.add(hemi);
+  const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+  dir.position.set(3,10,5);
+  scene.add(dir);
+
+  // a single mesh placeholder used for swapping geometry
+  let currentMesh = new THREE.Group();
+  scene.add(currentMesh);
+
+  // Fetch frame list
+  progressEl.innerText = "Requesting frame list...";
+  const res = await fetch(framesEndpoint);
+  if(!res.ok){
+    progressEl.innerText = "No frames found: " + (await res.text());
+    return;
+  }
+  const data = await res.json();
+  const urls = data.frames || [];
+  if(urls.length === 0){
+    progressEl.innerText = "No .obj frames in folder.";
+    return;
+  }
+  
+  async function loadOBJ(url){
+  // fetch text
+  const txt = await (await fetch(url)).text();
+  return parseOBJText(txt);
+}
+
+function parseOBJText(txt){
+  const lines = txt.split('\n');
+  const verts = [];
+  const faces = [];
+
+  for(const raw of lines){
+    const line = raw.trim();
+    if(line.length === 0) continue;
+    const parts = line.split(/\s+/);
+    if(parts[0] === 'v' && parts.length >= 4){
+      // vertex
+      verts.push([parseFloat(parts[1]), parseFloat(parts[2]), parseFloat(parts[3])]);
+    } else if(parts[0] === 'f' && parts.length >= 4){
+      // face (may be triangle or polygon), supports formats like:
+      // f v v v
+      // f v/vt/vn ...
+      const idxs = parts.slice(1).map(p => {
+        const a = p.split('/');
+        return parseInt(a[0], 10) - 1; // OBJ is 1-indexed
+      }).filter(n => !Number.isNaN(n));
+
+      // triangulate polygon (fan)
+      for(let i=1;i<idxs.length-1;i++){
+        faces.push([idxs[0], idxs[i], idxs[i+1]]);
+      }
+    }
+    // ignore other lines (vn, vt, mtllib, usemtl, etc.)
+  }
+
+  // Build BufferGeometry
+  const geometry = new THREE.BufferGeometry();
+
+  // flatten vertices
+  const position = new Float32Array(verts.length * 3);
+  for(let i=0;i<verts.length;i++){
+    position[i*3+0] = verts[i][0];
+    position[i*3+1] = verts[i][1];
+    position[i*3+2] = verts[i][2];
+  }
+  geometry.setAttribute('position', new THREE.BufferAttribute(position, 3));
+
+  // indices (if faces present)
+  if(faces.length > 0){
+    const idx = new Uint32Array(faces.length * 3);
+    for(let i=0;i<faces.length;i++){
+      idx[i*3+0] = faces[i][0];
+      idx[i*3+1] = faces[i][1];
+      idx[i*3+2] = faces[i][2];
+    }
+    geometry.setIndex(new THREE.BufferAttribute(idx, 1));
+  } else {
+    // if no faces, make a simple point cloud or fallback
+    // Here we keep triangles absent — some viewers may not render without faces.
+  }
+
+  geometry.computeVertexNormals();
+
+  // Create mesh
+  const mat = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.1, roughness: 0.8 });
+  const mesh = new THREE.Mesh(geometry, mat);
+
+  const g = new THREE.Group();
+  g.add(mesh);
+  return g;
+}
+
+  // Preload OBJ files (sequentially to avoid spikes)
+  const objects = [];
+  for(let i=0;i<urls.length;i++){
+  progressEl.innerText = `Loading frames: ${i+1} / ${urls.length}`;
+  try{
+    const obj = await loadOBJ(urls[i]); // returns THREE.Group
+    // normalize: compute bbox, scale and center (same as before)
+    const bbox = new THREE.Box3().setFromObject(obj);
+    const size = bbox.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+    if(maxDim > 0){
+      const scale = 1.0 / maxDim;
+      obj.scale.setScalar(scale);
+      const center = bbox.getCenter(new THREE.Vector3());
+      obj.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+    }
+    objects.push(obj);
+  }catch(e){
+    console.error("OBJ load/parse failed", urls[i], e);
+    objects.push(null);
+  }
+  slider.max = urls.length - 1;
+}
+
+  progressEl.innerText = `Loaded ${objects.length} frames. Ready.`;
+
+  // playback state
+  let playing = false;
+  let frame = 0;
+  let lastTime = performance.now();
+  let acc = 0;
+
+  function showFrame(i){
+    if(i <0 || i >= objects.length) return;
+    // remove previous
+    currentMesh.clear();
+    const o = objects[i];
+    if(o) {
+      currentMesh.add(o);
+    } else {
+      // placeholder
+      const g = new THREE.Group();
+      const geo = new THREE.BoxGeometry(0.3,0.3,0.3);
+      const mat = new THREE.MeshStandardMaterial({color:0xff0000});
+      g.add(new THREE.Mesh(geo,mat));
+      currentMesh.add(g);
+    }
+    slider.value = i;
+    progressEl.innerText = `Frame ${i+1} / ${objects.length}`;
+  }
+
+  // render loop with fps control
+  function animate(now){
+    const fps = Math.max(1, Number(fpsInput.value) || 15);
+    const dt = (now - lastTime) / 1000.0;
+    lastTime = now;
+    if(playing){
+      acc += dt;
+      const frameTime = 1.0 / fps;
+      while(acc >= frameTime){
+        frame = (frame + 1) % objects.length;
+        showFrame(frame);
+        acc -= frameTime;
+      }
+    }
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+  }
+  requestAnimationFrame(animate);
+
+  // initial show
+  showFrame(0);
+
+  // controls
+  playBtn.onclick = ()=> { playing = true; };
+  pauseBtn.onclick = ()=> { playing = false; };
+  slider.oninput = (e)=> { frame = parseInt(e.target.value); showFrame(frame); playing = false; };
+  fpsInput.onchange = ()=> { /* new fps will be used next frame */ };
+
+  // handle resize
+  window.addEventListener('resize', ()=> {
+    camera.aspect = container.clientWidth / container.clientHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(container.clientWidth, container.clientHeight);
+  });
+})();
+
+
+
+  // ====== Favorites (localStorage) ======
+  
+  const FAV_KEY = 'favorites';
+
+  function loadFavorites(){
+    try { return JSON.parse(localStorage.getItem(FAV_KEY) || "[]"); }
+    catch(e){ return []; }
+  }
+  function saveFavorites(arr){
+    localStorage.setItem(FAV_KEY, JSON.stringify(arr));
+  }
+
+  function isFavorite(word){
+    const fav = loadFavorites();
+    return fav.includes(word);
+  }
+
+  function addFavoriteWord(word){
+    if(!word) return;
+    const fav = loadFavorites();
+    if(!fav.includes(word)){
+      fav.push(word);
+      saveFavorites(fav);
+      renderFavorites();
+      updateBookmarkButtons();
+    }
+  }
+
+  function removeFavoriteWord(word){
+    if(!word) return;
+    let fav = loadFavorites();
+    fav = fav.filter(w => w !== word);
+    saveFavorites(fav);
+    renderFavorites();
+    updateBookmarkButtons();
+  }
+
+  // Toggle favorite from the bookmark button inside the word list.
+  // event is passed so we can stop propagation and prevent the click from also appending word.
+  function toggleFavorite(event, word){
+    event.stopPropagation();
+    if(isFavorite(word)) removeFavoriteWord(word);
+    else addFavoriteWord(word);
+  }
+
+  // Render the favorites panel (buttons that load the chosen phrase into input).
+  function renderFavorites(){
+    const container = document.getElementById('favorites-list');
+    const noFavs = document.getElementById('no-favs');
+    container.innerHTML = '';
+    //const fav = loadFavorites();
+	  const fav = loadFavorites().slice().sort((a, b) => a.localeCompare(b, 'vi', {sensitivity: 'base'}));
+	  
+    if(fav.length === 0){
+      noFavs.style.display = '';
+      return;
+    }
+    noFavs.style.display = 'none';
+    fav.forEach(w => {
+      const pill = document.createElement('div');
+      pill.style.display = 'flex';
+      pill.style.alignItems = 'center';
+      pill.style.gap = '8px';
+      pill.style.background = 'rgba(255,255,255,0.06)';
+      pill.style.padding = '6px 8px';
+      pill.style.borderRadius = '6px';
+
+      const text = document.createElement('span');
+      text.textContent = w;
+      text.style.cursor = 'pointer';
+      text.title = 'Click to load';
+      text.onclick = ()=> {
+        document.getElementById('word-input').value = w;
+        document.getElementById('main-form').submit();
+      };
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'fav-btn';
+      removeBtn.type = 'button';
+      removeBtn.textContent = '✕';
+      removeBtn.title = 'Remove from favorites';
+      removeBtn.onclick = ()=> removeFavoriteWord(w);
+
+      pill.appendChild(text);
+      pill.appendChild(removeBtn);
+      container.appendChild(pill);
+    });
+  }
+
+  // Update the star icons in the word list to reflect favorites
+  function updateBookmarkButtons(){
+    document.querySelectorAll('#word-list .word-item').forEach(li=>{
+      const w = li.dataset.word;
+      const btn = li.querySelector('.bookmark-btn');
+      if(!btn) return;
+      btn.textContent = isFavorite(w) ? '★' : '☆';
+      // optional: change style when favorited
+      if(isFavorite(w)){
+        btn.style.background = 'rgba(255,255,255,0.12)';
+      } else {
+        btn.style.background = 'transparent';
+      }
+    });
+  }
+
+  // Replace old showFavorites/addFavorite functions: expose simple API for other buttons if needed
+  window.addFavorite = function(){ addFavoriteWord(document.getElementById('word-input').value.trim()); };
+  window.showFavorites = function(){ 
+    const fav = loadFavorites();
+    if(fav.length === 0){ alert("No favorites yet."); return; }
+    // simple chooser (keeps older behavior available)
+    const pick = prompt("Favorites (type exact to load):\n" + fav.join("\n"));
+    if(pick){
+      document.getElementById('word-input').value = pick;
+      document.getElementById('main-form').submit();
+    }
+  };
+  
+  // ====== END Favorites (localStorage) ======
+
+  // filterWords and addToInput still used elsewhere; keep them
+  function filterWords(){
+    const q = document.getElementById('search-bar').value.toLowerCase();
+    document.querySelectorAll("#word-list li").forEach(li=>{
+      li.style.display = li.dataset.word.toLowerCase().includes(q) ? "" : "none";
+    });
+  }
+  function addToInput(word){
+    const input = document.getElementById('word-input');
+    input.value = (input.value + " " + word).trim();
+  }
+
+  // Initial render on page load
+  document.addEventListener('DOMContentLoaded', ()=>{
+    renderFavorites();
+    updateBookmarkButtons();
+
+    // Add click handler for each list item (so clicking the word text still appends)
+    // and ensure clicking the star button doesn't bubble to the li (we already stopPropagation in toggleFavorite).
+    document.querySelectorAll('#word-list .word-item').forEach(li=>{
+      // click on item (not star) appends word
+      li.addEventListener('click', (ev)=>{
+        // if user clicked the bookmark button it's already handled and stopped
+        const target = ev.target;
+        if(target.classList.contains('bookmark-btn')) return;
+        const w = li.dataset.word;
+        addToInput(w);
+      });
+    });
+  });
+  
+  (function(){
+    const tintColor = document.getElementById('tint_color');
+    const tintStrength = document.getElementById('tint_strength');
+    const tintHex = document.getElementById('tintHex');
+    const tintVal = document.getElementById('tintVal');
+
+    if(tintColor){
+      tintColor.addEventListener('input', ()=> {
+        tintHex.innerText = tintColor.value.toLowerCase();
+      });
+    }
+    if(tintStrength){
+      tintStrength.addEventListener('input', ()=> {
+        tintVal.innerText = parseFloat(tintStrength.value).toFixed(2);
+      });
+    }
+
+    // preset helper
+    window.applyTint = function(hex, strength){
+      if(tintColor) tintColor.value = (hex && hex.length ? hex : '#000000');
+      if(tintStrength) tintStrength.value = (typeof strength === 'number' ? strength : 0);
+      if(tintHex) tintHex.innerText = tintColor ? tintColor.value.toLowerCase() : '#000000';
+      if(tintVal) tintVal.innerText = (tintStrength ? parseFloat(tintStrength.value).toFixed(2) : '0.00');
+    };
+  })();
+  
+  function addFavorite(){
+    const inp = document.getElementById('word-input').value.trim();
+    if(!inp) { alert("Type or click a word first."); return; }
+    let fav = JSON.parse(localStorage.getItem('favorites') || "[]");
+    if(!fav.includes(inp)){
+      fav.push(inp);
+      localStorage.setItem('favorites', JSON.stringify(fav));
+      alert("Added to favorites: " + inp);
+    } else {
+      alert("Already in favorites.");
+    }
+  }
+
+  function showFavorites(){
+    const fav = JSON.parse(localStorage.getItem('favorites') || "[]");
+    if(fav.length === 0){ alert("No favorites yet."); return; }
+    const pick = prompt("Favorites (type exact to load):\n" + fav.join("\n"));
+    if(pick){
+      document.getElementById('word-input').value = pick;
+      document.getElementById('main-form').submit();
+    }
+  }
+
+  // ====== Append words to input (dictionary click) ======
+  function addToInput(word){
+    const input = document.getElementById('word-input');
+    input.value = (input.value + " " + word).trim();
+  }
+
+  // ====== Search filter ======
+  function filterWords(){
+    const q = document.getElementById('search-bar').value.toLowerCase();
+    document.querySelectorAll("#word-list li").forEach(li=>{
+      li.style.display = li.textContent.toLowerCase().includes(q) ? "" : "none";
+    });
+  }
+
+  // ====== Range labels ======
+  const b = document.getElementById('brightness'), c = document.getElementById('contrast'), s = document.getElementById('saturation');
+  if(b){ b.oninput = ()=> document.getElementById('bval').innerText = b.value; }
+  if(c){ c.oninput = ()=> document.getElementById('cval').innerText = c.value; }
+  if(s){ s.oninput = ()=> document.getElementById('sval').innerText = s.value; }
+
+  // ====== Submit process form via AJAX to avoid full page reload (optional) ======
+  function submitProcess(){
+	  const form = document.getElementById('process-form');
+	  // ensure video path is set
+	  document.getElementById('video_path').value = document.getElementById('video_path').value || '';
+
+	  // if TTS checked but no subtitle, confirm behavior (same as before)
+	  if(document.getElementById('tts').checked && !document.getElementById('subtitle').value){
+		if(!confirm("No subtitle provided. Use typed sentence for TTS?")) return;
+	  }
+
+	  // give quick feedback and prevent double clicks
+	  const btn = document.querySelector('button.primary[onclick="submitProcess()"]');
+	  if(btn){
+		btn.disabled = true;
+		const prevText = btn.textContent;
+		btn.textContent = 'Processing...';
+		// submit the form — browser will load server response (scripts will re-run)
+		form.submit();
+		// no need to reset button here (page will reload). If submit fails (JS-only), restore:
+		setTimeout(()=> {
+		  try { btn.disabled = false; btn.textContent = prevText; } catch(e) {}
+		}, 3000);
+	  } else {
+		form.submit();
+	  }
+	}
+
+
+  // Auto-clear input on load (optional)
+  window.onload = function(){ /* keep current behavior: don't clear if text present */ };
+
+</script>
+  </body>
+</html>

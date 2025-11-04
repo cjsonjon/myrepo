@@ -1,0 +1,3 @@
+file 'C:\Users\tran\Documents\CodePrac\flask\Smplify-X-Perfect-Implementation\videos\149_An_giang.mp4'
+file 'C:\Users\tran\Documents\CodePrac\flask\Smplify-X-Perfect-Implementation\videos\145_an_du.mp4'
+file 'C:\Users\tran\Documents\CodePrac\flask\Smplify-X-Perfect-Implementation\videos\33_bac_bo.mp4'
