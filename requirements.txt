@@ -1,0 +1,5 @@
+Flask==3.1.2
+flask_cors==6.0.1
+flask_localtunnel==1.0.7
+gTTS==2.5.4
+moviepy==2.2.1
